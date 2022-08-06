@@ -282,7 +282,20 @@ echo "github.com/mailjet/mailjet-apiv3-go/v3/fixtures"
 go get "github.com/mailjet/mailjet-apiv3-go/v3/fixtures"
 
 echo "https://github.com/edwindvinas/color"
-go get "https://github.com/edwindvinas/color"
+#go get "https://github.com/edwindvinas/color"
+cd $GOPATH/src/github.com/edwindvinas/
+git clone https://github.com/edwindvinas/color.git
+
+echo "github.com/google/go-cmp/cmp"
+#go get "github.com/google/go-cmp/cmp"
+mkdir -p $GOPATH/src/github.com/google/
+cd $GOPATH/src/github.com/google/
+git clone https://github.com/google/go-cmp.git
+
+echo "github.com/googleapis/enterprise-certificate-proxy/client"
+#go get "github.com/googleapis/enterprise-certificate-proxy/client"
+cd $GOPATH/src/github.com/googleapis/
+git clone https://github.com/googleapis/enterprise-certificate-proxy.git
 
 #echo "github.com/pborman/getopt"
 #go get "github.com/pborman/getopt"
