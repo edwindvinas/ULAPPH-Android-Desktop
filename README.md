@@ -7,7 +7,7 @@ Please see README found in the quick install repo.
 
 How does it differ from ULAPPH-Cloud-Desktop?
 ----------------
-They are almost similar since ULAPPH Android Desktop came from ULAPPH-Cloud-Desktop. Only that, this repo is targeted to run in Androud phones only.
+They are almost similar since ULAPPH Android Desktop came from ULAPPH-Cloud-Desktop. Only that, this repo is targeted to run in Android phones only.
 
 See below the ULAPPH-Cloud-Desktop repo if you want to install in Windows/Cloud/Containers.
 - https://github.com/edwindvinas/ULAPPH-Cloud-Desktop/
