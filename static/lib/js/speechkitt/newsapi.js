@@ -330,7 +330,7 @@ funcshow = function () {
 					//get qr code
 					var qrLink = "https://chart.googleapis.com/chart?cht=qr&chs=340x340&chl=" + url+ "&choe=UTF-8";
 					var qrLink2 = "https://chart.googleapis.com/chart?cht=qr&chs=500x500&chl=" + url+ "&choe=UTF-8";
-					alertify.log("NEWS: "+msgText+"<br>"+"VIEW: <a href='" + url +  "' target='" + url + "'>News</a> | <a href='" + img +  "' target='" + img + "'>Image</a> | NEXT: <a href='#' onClick=\"stopTalking();funcshow();return false;\">Next</a> | STOP: <a href='#' onClick=\"stopTalking();return false;\">Stop</a> | DATE: " + pdate + "<br><a href='" + qrLink2 +  "' target='" + qrLink2 + "'><img src=" + qrLink + " width=\"150\" height=\"150\"></img></a><img src=" + img + " width=\"150\" height=\"150\"></img>");
+					alertify.log("NEWS: "+msgText+"<br>"+"VIEW: <a href='" + url +  "' target='" + url + "'>News</a> | <a href='" + img +  "' target='" + img + "'>Image</a> | NEXT: <a href='#' onClick=\"stopTalking();funcshow();return false;\">Next</a> | STOP: <a href='#' onClick=\"stopTalking();return false;\">Stop</a> | DATE: " + pdate + "<br><a href='" + qrLink2 +  "' target='" + qrLink2 + "'><img src=" + qrLink + " width=\"150\" height=\"150\"></img></a><a href='" + img +  "' target='" + img + "'><img src=" + img + " width=\"150\" height=\"150\"></img></a>");
                 }
                 curIndex = curIndex + 1;
             }

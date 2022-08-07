@@ -610,6 +610,11 @@
 //REV DESC:	  	Added fingerprint support for Android Termux
 //REV AUTH:		Edwin D. Vinas
 /////////////////////////////////////////////////////////////////////////////////////////////////
+//REV ID: 		D0121
+//REV DATE: 	2022-Aug-02
+//REV DESC:	  	Added speech to text by calling Google Speech to Text service
+//REV AUTH:		Edwin D. Vinas
+/////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //---------------------------------------------------------------------------------------------
 //List of firebase channels
@@ -45342,6 +45347,7 @@ func ibmWatsonAssistant(w http.ResponseWriter, r *http.Request, wID, wAva, oMsg,
 
     // Call the assistant Message method
     //log.Printf("Call the watson assistant api...")
+    ulapphDebug(w,r, "info", fmt.Sprintf("oMsg: %v", oMsg))
 	ulapphDebug(w,r, "info", fmt.Sprintf("Call the watson assistant api... %v", ""))
 	_, response, responseErr := service.
 		Message(&assistantv2.MessageOptions{
