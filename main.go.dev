@@ -597,7 +597,12 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //REV ID: 		D0118
 //REV DATE: 	2022-Jul-05
-//REV DESC:	  	Added Android support via Termux
+//REV DESC:	  	Added Android support via Termux (see ULAPPH-Android-Desktop)
+//REV AUTH:		Edwin D. Vinas
+/////////////////////////////////////////////////////////////////////////////////////////////////
+//REV ID: 		D0119
+//REV DATE: 	2022-Aug-07
+//REV DESC:	  	Added Speech to Text support
 //REV AUTH:		Edwin D. Vinas
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //REV ID: 		D0119
@@ -778,6 +783,9 @@ import (
 	//D0117
 	"github.com/edwindvinas/color"
 	"github.com/gorilla/mux"
+	//D0119
+	speech "cloud.google.com/go/speech/apiv1"
+	speechpb "google.golang.org/genproto/googleapis/cloud/speech/v1"
 )
 //D0117
 //init function for gorilla router
@@ -911,6 +919,9 @@ func main() {
     //D0091
     //ai orchestrators
     http.HandleFunc("/orch", orchestrator)
+	//D0119
+	//speech to text api
+	http.HandleFunc("/stt", ulapphSpeechToText)
     //jswm
     http.HandleFunc("/uwm", uwm)
     http.HandleFunc("/desktop0", desktop0)
@@ -2601,7 +2612,6 @@ type TValue struct {
 	Index uint   `json:"Index"`
 	Text  string `json:"Text"`
 }
-//edwinxxx
 // TResult returns some defaults fields that Termux API provides to us
 type TResult struct {
 	Code   int8     `json:"Code,omitempty"`   // -2, -1 or 0 in rare cases
@@ -8188,7 +8198,6 @@ func contactUs(w http.ResponseWriter, r *http.Request) {
    }
 }
 //D0120
-//edwinxxx
 func loginTermuxFingerprint(w http.ResponseWriter, r *http.Request) {
 	ulapphDebug(w,r, "info", fmt.Sprintf("loginTermuxFingerprint() %v", ""))
 	if SYS_FINGERPRINT_ENABLED == false {
@@ -8202,8 +8211,6 @@ func loginTermuxFingerprint(w http.ResponseWriter, r *http.Request) {
 	return
 }
 //D0120
-//edwinxxx
-
 func loginTermuxDialog(w http.ResponseWriter, r *http.Request) {
 	ulapphDebug(w,r, "info", fmt.Sprintf("loginTermuxDialog() %v", ""))
 	tdcTitle := TDialogTitle {
@@ -8797,7 +8804,6 @@ func ulapphGo(w http.ResponseWriter, r *http.Request) {
 					//show default page
 					//log.Printf("show default page...")
 					showAngularFileManagerGCS(w,r,".angular-file-manager",uid,apd.Path)
-					
 				case afm_func == "upload":
 					//log.Printf("case afm_func= %v", afm_func)
 					//log.Printf("function not yet available")
@@ -13946,7 +13952,7 @@ func showHomeGallery(w http.ResponseWriter, r *http.Request) {
 //checks any homepage settings if any custom theme is to be used
 func checkHomepageSettings(w http.ResponseWriter, r *http.Request, uid, redirectURL string) {
     //c := appengine.NewContext(r)
-    ulapphDebug(w,r,"info", fmt.Sprintf("checkHomepageSettings()", ""))
+    ulapphDebug(w,r,"info", fmt.Sprintf("checkHomepageSettings() %v", ""))
     c, cancel := context.WithCancel(context.Background())
 	    defer cancel()
 	redURL := ""
@@ -16304,7 +16310,9 @@ func listImgWallpapers(w http.ResponseWriter, r *http.Request) []byte {
 	var buf bytes.Buffer
 	files, err := ioutil.ReadDir("./static/img/wallpapers/")
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
+		ulapphDebug(w,r, "error", fmt.Sprintf("listImgWallpapers() ERROR: %v", err))
+		return nil
 	}
 	
 	buf.WriteString(fmt.Sprintf("<hr>"))
@@ -17750,102 +17758,6 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
 	//fmt.Fprintf(w,"%v\n", thisCont)
 	//start otto vm
 	vm := otto.New()
-	/*vm.Set("ottoFuncNlpProseExecWithTokens", func(kb, input string) []string {
-		//log.Printf("ottoFunc: ottoFuncNlpProseExecWithTokens")
-		//log.Printf("input: %v", input)
-		doc, err := prose.NewDocument(input)
-		if err != nil {
-			log.Panicf("Prose error: %v", err)
-			return []string{"error"}
-		}
-		//log.Printf("doc: %#v", doc)
-		var thisResp []string
-		for _, tok := range doc.Tokens() {
-			//log.Printf("TEXT: %v TAG: %v LABEL: %v<br>", tok.Text, tok.Tag, tok.Label)
-			thisTok := fmt.Sprintf("%v@777@%v@777@%v", tok.Text, tok.Tag, tok.Label)
-			thisResp = append(thisResp, thisTok) 
-		}
-		justString := strings.Join(thisResp,"@888@")
-		//log.Printf("Executing OttoJS: %v", kb)
-		resp := execOtto(w,r, cType, uid, uid_rx, kb, oTS, bName, devID, "N", "input", justString)
-		//log.Printf("resp: %v", resp)
-		return []string{resp}
-	})*/
-	/*vm.Set("ottoFuncFindExactMatch", func(s,l string) string {
-		//get from cache if available
-		//log.Printf("ottoFunc: ottoFuncFindExactMatch")
-		//log.Printf("SID: %v", s)
-                cKey := fmt.Sprintf("ULAPPH_NLP_%v", s)
-                //log.Printf("cKey: %v", cKey)
-                thisCont := getStrMemcacheValueByKey(w,r,cKey)
-		if thisCont == "" {
-			BLOB_KEY := contentCheckSid(w,r,s)
-			thisCont = getBlobTextNoComms(w, r, BLOB_KEY)
-			putStrToMemcacheWithExp(w,r,cKey,thisCont,150)
-		}
-		dec := json.NewDecoder(strings.NewReader(thisCont))
-		proses := []ProseDataNLP{}
-		for {
-			ent := ProseDataNLP{}
-			err := dec.Decode(&ent)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				panic(err)
-			}
-			proses = append(proses, ent)
-		}
-		cmRes := ""
-		for _, p := range proses {
-			if p.Text == l{
-				cmRes = p.Answer
-				break
-			}
-		}
-		//log.Printf("cmRes: %v", cmRes)
-		return cmRes
-	})*/
-	/*vm.Set("ottoFuncFindFuzzyMatch", func(s,l string) []string {
-		//get from cache if available
-		//log.Printf("ottoFunc: ottoFuncFindFuzzyMatch")
-		//log.Printf("search: %v", s)
-		SID := r.FormValue("SID")
-                cKey := fmt.Sprintf("ULAPPH_NLP_%v", SID)
-                //log.Printf("cKey: %v", cKey)
-                thisCont := getStrMemcacheValueByKey(w,r,cKey)
-		dec := json.NewDecoder(strings.NewReader(thisCont))
-		proses := []ProseDataNLP{}
-		for {
-			ent := ProseDataNLP{}
-			err := dec.Decode(&ent)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				panic(err)
-			}
-			proses = append(proses, ent)
-		}
-		wordsToTest := []string{}
-		for _, p := range proses {
-			if p.Text != "" && p.Help != "" && p.IsRegexp == "fuzzy"{
-				wordsToTest = append(wordsToTest, fmt.Sprintf("%v@888@%v@888@%v@888@%v", p.Answer, p.Text, p.Help, p.IsAnsOtto))
-			}
-		}
-		//find closest match
-		bagSizes := []int{2, 3, 4}
-		cm := closestmatch.New(wordsToTest, bagSizes)
-		//cmRes := cm.Closest(s)
-		resLimit, _ := strconv.Atoi(l)
-		if resLimit <= 0 {
-			resLimit = 1
-		}
-		//find closest match
-		cmRes := cm.ClosestN(s, resLimit)
-		//log.Printf("cmRes: %v", cmRes)
-		return cmRes
-	})*/
 	FL_CLEAR_KVO := false
 	vm.Set("ottoFuncClearConversation", func() string {
 		//log.Printf("ottoFunc: ottoFuncClearConversation")
@@ -17920,6 +17832,10 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
 			
 		return ""
 	})
+	vm.Set("ottoFuncLogger", func(s string) {
+	  //ulapphDebug(w,r, "otto", fmt.Sprintf("ottoFuncLogger() %v", ""))
+	  ulapphDebug(w,r, "otto", fmt.Sprintf("%v", s))
+	})
 	vm.Set("ottoFuncHttpGet", func(s string) string {
 	  //log.Printf("ottoFunc: ottoFunchttpGet")
 	  //client := urlfetch.Client(c)
@@ -17986,6 +17902,46 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
         })
 		if ctr <= n {
 			text = buf.String()
+		}
+		ulapphDebug(w,r, "info", fmt.Sprintf("text: %v", text))
+        return text
+    })
+	vm.Set("ottoFuncScrapeWebsiteRandom", func(s, u string, n int) (text string) {
+	  //log.Printf("ottoFunc: ottoFuncScrapeWebsiteRandom")
+	  ulapphDebug(w,r, "info", fmt.Sprintf("ottoFuncScrapeWebsiteRandom() %v", ""))
+	  // s - selector
+      // u - link
+      // n - limit rows
+        goq, err := goquery.NewDocument(r,u)
+        if err != nil {
+            log.Fatalf("ERROR: %v", err)
+        }
+        // use CSS selector found with the browser inspector
+        // for each, use index and item
+        var buf bytes.Buffer
+        ctr := 0
+        var resArr []string
+        goq.Find(s).Each(func(index int, item *goquery.Selection) {
+            //text = item.Text()
+			ulapphDebug(w,r, "info", fmt.Sprintf("goq.Find(s).Each(): %#v", item))
+            if ctr < n {
+                ctr++
+                buf.WriteString(fmt.Sprintf("%v\n", item.Text()))
+				ulapphDebug(w,r, "info", fmt.Sprintf("item.Text(): %v\n", item.Text()))
+                text = buf.String()
+                resArr = append(resArr, text)
+            } else {
+                if ctr > 0 {
+                    //dummy
+                } else {
+                    text = "No data found!"
+                }
+            }
+        })
+		if ctr <= n {
+			myItem := randNum(1, n)
+			//text = buf.String()
+            text = resArr[myItem]
 		}
 		ulapphDebug(w,r, "info", fmt.Sprintf("text: %v", text))
         return text
@@ -18072,30 +18028,6 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
 		ulapphDebug(w,r, "info", fmt.Sprintf("imglist: %v", imglist))
         return imglist
 	})
-	//D0081
-	/*vm.Set("ottoFuncGetIntentDialogflow", func(user,input string) (string,string) {
-	  //log.Printf("ottoFunc: ottoFuncGetIntentDialogflow")
-		// Use NLP
-		nlpDebug(w,r,FL_DEBUG, "info", "Call processDialoflowNLP()")
-		response,response2 := processDialogflowNLP(w,r,FL_DEBUG,devID,input)
-		nlpDebug(w,r,FL_DEBUG, "info", "processDialogflowNLP() resp: "+fmt.Sprintf("%v",response))
-		nlpDebug(w,r,FL_DEBUG, "info", "processDialogflowNLP() resp2: "+fmt.Sprintf("%v",response2))
-		//log.Printf("response: %v", response)
-		return response, response2
-	})*/
-	//D0081
-	/*vm.Set("ottoFuncSendEmail", func(mode,uid,input string) string {
-	  //log.Printf("ottoFunc: ottoFuncSendEmail")
-		nlpDebug(w,r,FL_DEBUG, "error", "Send email: "+ADMMAIL)
-		geoStr := getGeoString(w,r)
-		geoAcc := getAccessString(w,r,"")
-		subject := fmt.Sprintf("[ULAPPH] %v intent [%v]", mode, uid)
-		MESSAGE := fmt.Sprintf("[ULAPPH] %v intent [<b>%v</a>] [%v] [%v] [%v] [%v] [%v]", mode, input, SYS_SERVER_NAME, SID, uid, geoStr, geoAcc)
-        time.AfterFunc(5*time.Second, func() {
-            laterQueueCloudTask(c, "/ulapph-router?RTR_FUNC=queue-generic-send-email", map[string]string{"SUBJECT": subject, "TO": ADMMAIL, "FROM": uid, "MESSAGE": MESSAGE})
-        })
-		return "sent email"
-	})*/
 	//D0081
 	vm.Set("ottoFuncSendEmailGeneric", func(to,from,subject,message string) string {
 	  //log.Printf("ottoFunc: ottoFuncSendEmailGeneric")
@@ -18229,12 +18161,15 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
 			FL_DEBUG = "Y"
 		}
 	    if value_str, err := value.ToString(); err == nil {
-		nlpDebug(w,r,FL_DEBUG, "info", "**********OTTO EXEC LOGS START**********")
+		//nlpDebug(w,r,FL_DEBUG, "info", "**********OTTO EXEC LOGS START**********")
+		ulapphDebug(w,r, "header", fmt.Sprintf("**********OTTO EXEC LOGS START**********"))
 		//log.Printf("***********OTTO EXEC LOGS START**************")
 		//log.Printf("%v", value_str)
-		nlpDebug(w,r,FL_DEBUG, "info", value_str)
+		//nlpDebug(w,r,FL_DEBUG, "info", value_str)
+        ulapphDebug(w,r, "otto", fmt.Sprintf("value_str: %v", value_str))
 		//log.Printf("***********OTTO EXEC LOGS END**************")
-		nlpDebug(w,r,FL_DEBUG, "info", "**********OTTO EXEC LOGS END**********")
+		//nlpDebug(w,r,FL_DEBUG, "info", "**********OTTO EXEC LOGS END**********")
+		ulapphDebug(w,r, "header", fmt.Sprintf("**********OTTO EXEC LOGS END**********"))
 	    }
 	}
 	//log.Printf("resp: %v", resp)
@@ -31408,7 +31343,7 @@ func stmpHumanizeStr(tStr string) (fTime string) {
 //validations for access
 //it determines if the current user is a valid or registered user
 func validateAccess(w http.ResponseWriter, r *http.Request, FUNC_CODE, lref string) (FL_PROCEED_OK bool) {
-    ulapphDebug(w,r,"info", fmt.Sprintf("validateAccess()", ""))
+    ulapphDebug(w,r,"info", fmt.Sprintf("validateAccess() %v", ""))
 	if SYS_NOREG_FIXED_USER != "" {
 		return true
 	}
@@ -36371,7 +36306,7 @@ func ulapphRouter (w http.ResponseWriter, r *http.Request) {
 		//URLFECTH TASKS
 		case "CACHE_URL_FETCH_01":
 			//log.Printf("case CACHE_URL_FETCH_01")
-			ulapphDebug(w,r, "info", fmt.Sprintf("case: %", "CACHE_URL_FETCH_01"))
+			ulapphDebug(w,r, "info", fmt.Sprintf("case: %v", "CACHE_URL_FETCH_01"))
 			ulapphDebug(w,r, "info", fmt.Sprintf("Calling TASK_MEMCACHER_URLFETCH_philvolcs_EQ()..."))
 			TASK_MEMCACHER_URLFETCH_philvolcs_EQ(w,r)
 			/*
@@ -45189,36 +45124,52 @@ func orchestrator(w http.ResponseWriter, r *http.Request) {
 func getLocalMotd(w http.ResponseWriter, r *http.Request, mode string) string {
 	ulapphDebug(w,r, "info", fmt.Sprintf("getLocalMotd() %v", ""))
 	resMsg := ""
-	folder := ""
-	if SYS_CONTAINER_ENV == true {
-		folder = "/ai/" + "motd"
-	} else {
-		folder = "../ULAPPH-Cloud-Desktop-AI/" + "motd"
-	}
-	//select a random file
-	var files []string
-	err := filepath.Walk(folder, visit(&files))
-	if err != nil {
-		panic(err)
-	}
-	myRun := randNum(1, len(files))
-	fctr := 0
-	for _, file := range files {
-		fctr++
-		//fmt.Println(file)
-		ulapphDebug(w,r, "info", fmt.Sprintf("motd file: %v", file))
-		if fctr == myRun {
-			filePath := file
-			ulapphDebug(w,r, "info", fmt.Sprintf("filePath: %v", filePath))
-			b, err := ioutil.ReadFile(filePath)
-			if err != nil {
-				ulapphDebug(w,r, "error", fmt.Sprintf("ERROR ioutil.ReadFile(): %v", filePath))
-				resMsg = "No data found!"
-			}
-			resMsg = getRanText(w,r,string(b))
-			break
-		}
-	}
+    switch mode {
+    //edwinxxx
+    case "story":
+        folder := ""
+        if SYS_CONTAINER_ENV == true {
+            folder = "/ai/" + "motd"
+        } else {
+            folder = "../ULAPPH-Cloud-Desktop-AI/ai/" + "motd"
+        }
+        folderFile := folder+"/TDSMEDIA-777-AesopFables.txt"
+        ulapphDebug(w,r, "info", fmt.Sprintf("folderFile: %v", folderFile))
+        //edwinxxx
+		thisStr := readDataFile(w,r,folderFile)
+        resMsg = getRanText(w,r,thisStr)
+    case "motd":
+        folder := ""
+        if SYS_CONTAINER_ENV == true {
+            folder = "/ai/" + "motd"
+        } else {
+            folder = "../ULAPPH-Cloud-Desktop-AI/ai/" + "motd"
+        }
+        //select a random file
+        var files []string
+        err := filepath.Walk(folder, visit(&files))
+        if err != nil {
+            panic(err)
+        }
+        myRun := randNum(1, len(files))
+        fctr := 0
+        for _, file := range files {
+            fctr++
+            //fmt.Println(file)
+            ulapphDebug(w,r, "info", fmt.Sprintf("motd file: %v", file))
+            if fctr == myRun {
+                filePath := file
+                ulapphDebug(w,r, "info", fmt.Sprintf("filePath: %v", filePath))
+                b, err := ioutil.ReadFile(filePath)
+                if err != nil {
+                    ulapphDebug(w,r, "error", fmt.Sprintf("ERROR ioutil.ReadFile(): %v", filePath))
+                    resMsg = "No data found!"
+                }
+                resMsg = getRanText(w,r,string(b))
+                break
+            }
+        }
+    }
 	return resMsg
 }
 //get MOTD from GCS
@@ -45898,6 +45849,116 @@ func htmlTagParser(w http.ResponseWriter, r *http.Request, s string) (oAction, o
     }
     f(doc)
     return oAction, oService, oMessage, oLocation, oSession
+}
+//D0119
+func ulapphSpeechToText(w http.ResponseWriter, r *http.Request) {
+	ulapphDebug(w,r, "info", fmt.Sprintf("ulapphSpeechToText() %v", ""))
+
+	FUNC_CODE := r.FormValue("FUNC_CODE")
+	ulapphDebug(w,r, "info", fmt.Sprintf("FUNC_CODE: %v", FUNC_CODE))
+
+	_, uid := checkSession(w,r)
+
+	switch FUNC_CODE {
+		case "upload-audio":
+			ulapphDebug(w,r, "info", fmt.Sprintf("case \"upload-audio\": %v", ""))
+			gcsObjectUrl := ""
+			gcsMediaUrl := ""
+			IS_FILE_OK := true
+			r.ParseMultipartForm(32 << 20)
+			file, _, err := r.FormFile("file")
+			if err != nil {
+				IS_FILE_OK = false
+			}
+			if IS_FILE_OK == true {
+				defer file.Close()
+				data, err := ioutil.ReadAll(file)
+				if err != nil {
+					IS_FILE_OK = false
+				}
+				if IS_FILE_OK == true {
+					ctx := context.Background()
+					inpData := strings.NewReader(string(data))
+					public := false
+					if SYS_NOREG_FIXED_USER != "" {
+						public = true
+					}
+					UUID := fmt.Sprintf("%v/STT_AUDIO", uid) 
+					ulapphDebug(w,r, "info", fmt.Sprintf("UUID: %v", UUID))
+					_, _, err := uploadGcsObject(ctx, inpData, UUID, public)
+					if err != nil {
+						switch err {
+						case storage.ErrBucketNotExist:
+							//log.Fatalf("Please create the bucket first e.g. with `gsutil mb`")
+							ulapphDebug(w,r, "error", fmt.Sprintf("Please create the bucket first e.g. with gsutil mb"))
+							w.WriteHeader(200)
+							w.Write([]byte("error"))
+							return
+						default:
+							//log.Fatalf("ERROR: %v", err)
+							ulapphDebug(w,r, "error", fmt.Sprintf("%v", err))
+							w.WriteHeader(200)
+							w.Write([]byte("error"))
+							return
+						}
+					}
+
+					gcsObjectUrl = UUID
+					gcsMediaUrl = mediaURL(UUID)
+					ulapphDebug(w,r, "info", fmt.Sprintf("gcsObjectUrl: %v", gcsObjectUrl))
+					ulapphDebug(w,r, "info", fmt.Sprintf("gcsMediaUrl: %v", gcsMediaUrl))
+					w.WriteHeader(200)
+					w.Write([]byte(gcsObjectUrl))
+					return
+				}
+			} 
+		
+		case "speech-to-text":
+			ulapphDebug(w,r, "info", fmt.Sprintf("case \"speech-to-text\": %v", ""))
+		    ctx := context.Background()
+
+			// Creates a client.
+			client, err := speech.NewClient(ctx)
+			if err != nil {
+					log.Fatalf("Failed to create client: %v", err)
+			}
+			defer client.Close()
+
+			// The path to the remote audio file to transcribe.
+			fileURI := r.FormValue("fileURI")
+			ulapphDebug(w,r, "info", fmt.Sprintf("fileURI: %v", fileURI))
+			//fileURI := "gs://cloud-samples-data/speech/brooklyn_bridge.raw"
+
+			// Detects speech in the audio file.
+			resp, err := client.Recognize(ctx, &speechpb.RecognizeRequest{
+					Config: &speechpb.RecognitionConfig{
+							Encoding:        speechpb.RecognitionConfig_LINEAR16,
+							SampleRateHertz: 16000,
+							LanguageCode:    "en-US",
+					},
+					Audio: &speechpb.RecognitionAudio{
+							AudioSource: &speechpb.RecognitionAudio_Uri{Uri: fileURI},
+					},
+			})
+			if err != nil {
+					log.Fatalf("failed to recognize: %v", err)
+			}
+
+			// Prints the results.
+			for _, result := range resp.Results {
+					for _, alt := range result.Alternatives {
+							resStr := fmt.Sprintf("\"%v\" (confidence=%3f)\n", alt.Transcript, alt.Confidence)
+							ulapphDebug(w,r, "info", fmt.Sprintf("resStr: %v", resStr))
+					}
+			}
+			
+		default:
+			ulapphDebug(w,r, "error", fmt.Sprintf("Function Code not supported"))
+			w.WriteHeader(200)
+			w.Write([]byte("func_code error"))
+			return	
+	}
+
 }
 //D0065
 //D0075
@@ -93725,7 +93786,6 @@ func TermuxDialog(w http.ResponseWriter, r *http.Request, title string) TResult 
 	}
 	return RT
 }
-//edwinxxx
 // TermuxDialogConfirm spawns new confirmation dialog
 func TermuxDialogConfirm(w http.ResponseWriter, r *http.Request, td TDialogConfirm) TResult {
     	ulapphDebug(w,r, "header", fmt.Sprintf("TermuxDialogConfirm() %v", ""))

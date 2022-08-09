@@ -1,4 +1,4 @@
-runtime: go113
+runtime: go116
 #basic_scaling:
 #  max_instances: 1
 #  idle_timeout: 10m
@@ -289,6 +289,10 @@ handlers:
   secure: always
 
 - url: /orch
+  script: auto
+  secure: always
+  
+- url: /stt
   script: auto
   secure: always
   
