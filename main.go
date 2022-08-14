@@ -17882,7 +17882,6 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
 	  ulapphDebug(w,r, "otto", fmt.Sprintf("ottoFuncTermux_SearchContacts() %v", ""))
       ulapphDebug(w,r, "otto", fmt.Sprintf("pn: %v cn: %v", pn, cn))
       //get Termux contacts
-      //edwinxxx
       ulapphDebug(w,r, "call", fmt.Sprintf("Calling TermuxContactList()"))
       bResp := TermuxContactList(w,r)
       ulapphDebug(w,r, "info", fmt.Sprintf("bResp: %v", len(bResp)))	
@@ -94365,7 +94364,6 @@ func TermuxWifiConnectionInfo(w http.ResponseWriter, r *http.Request) TConnectio
 	return t
 }
 //D0122
-//edwinxxx
 // TermuxContactList returns list of all contacts
 func TermuxContactList(w http.ResponseWriter, r *http.Request) []TContact {
     ulapphDebug(w,r, "header", fmt.Sprintf("TermuxContactList() %v", ""))
