@@ -1075,7 +1075,7 @@ const (
 	//For local ULAPPH; indicate the ULAPPH data folder
 	SYS_ULAPPH_DATA_FOLDER_PATH = ``
 	//Flag to enable basic ULAPPH data read/write
-	SYS_ULAPPH_DATA_ENABLED = ``
+	SYS_ULAPPH_DATA_ENABLED = false
     //For appengine standard install only
     //If this is true, STATELESS should be false
     SYS_APPENGINE_STANDARD = true
