@@ -620,6 +620,11 @@
 //REV DESC:	  	Added speech to text by calling Google Speech to Text service
 //REV AUTH:		Edwin D. Vinas
 /////////////////////////////////////////////////////////////////////////////////////////////////
+//REV ID: 		D0122
+//REV DATE: 	2022-Aug-12
+//REV DESC:	  	Added Termux intents in Watson and use Golang termux wrapper 
+//REV AUTH:		Edwin D. Vinas
+/////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //---------------------------------------------------------------------------------------------
 //List of firebase channels
@@ -1066,7 +1071,7 @@ const (
 	//System/Device Info
 	SYS_DEVICE_INFO = ``
 	//Fingerprint support
-	SYS_FINGERPRINT_ENABLED = ``
+	SYS_FINGERPRINT_ENABLED = false
 	//For local ULAPPH; indicate the ULAPPH data folder
 	SYS_ULAPPH_DATA_FOLDER_PATH = ``
 	//Flag to enable basic ULAPPH data read/write
@@ -2637,8 +2642,8 @@ type TClipboard struct {
 
 // TContact is a single contact from your phone, used in TContacts
 type TContact struct {
-	Name   string `json:"Name"`   // Name of your contact
-	Number string `json:"Number"` // Number of your contact
+	Name   string `json:"name"`   // Name of your contact
+	Number string `json:"number"` // Number of your contact
 }
 
 // TDialogTitle represents Title in TermuxDialog, used in every single TDialog function
@@ -2887,6 +2892,16 @@ type TDevice struct {
 	SimSerialNumber       string `json:"sim_serial_number"`       // The serial number of the SIM, if applicable
 	SimSubscriberID       string `json:"sim_subscriber_id"`       // The unique subscriber ID, for example, the IMSI for a GSM phone
 	SimState              string `json:"sim_state"`               // States: ABSENT, NETWORK_LOCKED, PIN_REQUIRED, PUK_REQUIRED, READY, UNKNOWN
+}
+// SMS represents a piece of received SMS
+type SMS struct {
+	ThreadID int    `json:"threadid"`
+	Type     string `json:"type"`
+	Read     bool   `json:"read"`
+	Sender   string `json:"sender"`
+	Number   string `json:"number"`
+	Received string `json:"received"`
+	Body     string `json:"body"`
 }
 //======= termux ends====
 ///////////////////////////////////////////////////////////////	
@@ -17832,6 +17847,79 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
 			
 		return ""
 	})
+    //D0122
+    //Termux APIs
+    //=================
+	vm.Set("ottoFuncTermux_SMSlist", func(s string) string {
+	    ulapphDebug(w,r, "otto", fmt.Sprintf("%v", s))
+        bResp := TermuxSMSlist(w,r,s)
+        ulapphDebug(w,r, "info", fmt.Sprintf("bResp: %v", string(bResp)))	
+        var smsData []SMS
+		err := json.Unmarshal(bResp, &smsData)
+		if err != nil {
+				ulapphDebug(w,r, "error", fmt.Sprintf("json.Unmarshal() %v", ""))
+		}
+        resObj := []SMS{}
+        for _,k := range smsData {
+            //ulapphDebug(w,r, "info", fmt.Sprintf("i: %v k: %v", i,k))	
+            ulapphDebug(w,r, "info", fmt.Sprintf("k: %v", k))	
+            p := SMS{
+                Sender: k.Sender,
+                Received: k.Received,
+                Body: k.Body,
+                Number: k.Number,
+            }
+            resObj = append(resObj, p)
+        }
+        data, err := json.Marshal(resObj)
+        if err != nil {
+            //log.Printf("json.Marshal() Error: %v", err)
+        }
+        ulapphDebug(w,r, "info", fmt.Sprintf("data: %v", string(data)))	
+        return string(data) 
+	})
+	vm.Set("ottoFuncTermux_SearchContacts", func(pn, cn string) string {
+	  ulapphDebug(w,r, "otto", fmt.Sprintf("ottoFuncTermux_SearchContacts() %v", ""))
+      ulapphDebug(w,r, "otto", fmt.Sprintf("pn: %v cn: %v", pn, cn))
+      //get Termux contacts
+      //edwinxxx
+      ulapphDebug(w,r, "call", fmt.Sprintf("Calling TermuxContactList()"))
+      bResp := TermuxContactList(w,r)
+      ulapphDebug(w,r, "info", fmt.Sprintf("bResp: %v", len(bResp)))	
+      //search contacts list
+      //numMat := 0
+      namMat := 0
+      foundNum := ""
+      foundName := ""
+	  for _, p := range bResp{
+          //ulapphDebug(w,r, "info", fmt.Sprintf("p.Name: %v", p.Name))	
+          //ulapphDebug(w,r, "info", fmt.Sprintf("p.Number: %v", p.Number))	
+          //if strings.Index(p.Number, pn) != -1 {
+          //    foundNum = p.Number
+          //    numMat++
+          //}
+          if strings.Index(strings.ToLower(p.Name), strings.ToLower(cn)) != -1 {
+              ulapphDebug(w,r, "info", fmt.Sprintf("p.Name: %v", p.Name))	
+              ulapphDebug(w,r, "info", fmt.Sprintf("p.Number: %v", p.Number))	
+              foundName = p.Name
+              foundNum = p.Number
+              namMat++
+          }
+          //if numMat > 1 && namMat > 1 {
+          if namMat > 1 {
+              ulapphDebug(w,r, "error", fmt.Sprintf("Error: Multiple contacts found. %v", ""))	
+              return "err_multi"
+          }
+      }
+      if namMat == 1 {
+        ulapphDebug(w,r, "info", fmt.Sprintf("Contact number found: %v [%v]", foundNum, foundName))	
+        return foundNum
+      }
+      return "err_unknown"
+
+	})
+    
+    //==end Termux APIs====
 	vm.Set("ottoFuncLogger", func(s string) {
 	  //ulapphDebug(w,r, "otto", fmt.Sprintf("ottoFuncLogger() %v", ""))
 	  ulapphDebug(w,r, "otto", fmt.Sprintf("%v", s))
@@ -18129,7 +18217,9 @@ func execOtto(w http.ResponseWriter, r *http.Request, cType, uid,uid_rx,SID, oTS
 	_, err := vm.Run(thisCont)
 	if err != nil {
 		//log.Printf("ERROR: %v\n", err)
-		resp = fmt.Sprintf("<font color=\"red\">[%v] ERROR: %v</font>", SID, err)
+		//resp = fmt.Sprintf("<font color=\"red\">[%v] ERROR: %v</font>", SID, err1)
+		resp = fmt.Sprintf("[%v] ERROR: %v", SID, err)
+        ulapphDebug(w,r, "error", resp)
 		return resp
 	}
 	//get updated kvo
@@ -45125,7 +45215,6 @@ func getLocalMotd(w http.ResponseWriter, r *http.Request, mode string) string {
 	ulapphDebug(w,r, "info", fmt.Sprintf("getLocalMotd() %v", ""))
 	resMsg := ""
     switch mode {
-    //edwinxxx
     case "story":
         folder := ""
         if SYS_CONTAINER_ENV == true {
@@ -45135,7 +45224,6 @@ func getLocalMotd(w http.ResponseWriter, r *http.Request, mode string) string {
         }
         folderFile := folder+"/TDSMEDIA-777-AesopFables.txt"
         ulapphDebug(w,r, "info", fmt.Sprintf("folderFile: %v", folderFile))
-        //edwinxxx
 		thisStr := readDataFile(w,r,folderFile)
         resMsg = getRanText(w,r,thisStr)
     case "motd":
@@ -67698,7 +67786,6 @@ const articlesDispTemplateHTMLRecs2 = `
 {{end}}
 {{end}}
 `
-//edwinxx
 var mediaDispTemplateAdminLocal = template.Must(template.New("mediaDispTemplateAdminRecs").Parse(mediaDispTemplateHTMLLocal))
  
 const mediaDispTemplateHTMLLocal = `
@@ -93769,6 +93856,19 @@ func AddPromoItemToCart(w http.ResponseWriter, r *http.Request, code string) (er
 	return err
 }
 //D0115-end
+//D0122
+// TermuxSMSlist reads SMS messages 
+func TermuxSMSlist(w http.ResponseWriter, r *http.Request, offset string) []byte {
+	executed := ExecAndListen(w,r,"termux-sms-list", []string{
+		"-d",
+        "-n",
+		"-l", "1",
+        "-o", offset,
+		"-t", "inbox",
+	})
+	return executed 
+}
+
 //D0120
 //Termux API wrappers
 func TermuxFingerprint(w http.ResponseWriter, r *http.Request) []byte {
@@ -94264,14 +94364,17 @@ func TermuxWifiConnectionInfo(w http.ResponseWriter, r *http.Request) TConnectio
 	}
 	return t
 }
-
+//D0122
+//edwinxxx
 // TermuxContactList returns list of all contacts
 func TermuxContactList(w http.ResponseWriter, r *http.Request) []TContact {
+    ulapphDebug(w,r, "header", fmt.Sprintf("TermuxContactList() %v", ""))
 	var c []TContact
 	command := ExecAndListen(w,r,"termux-contact-list", nil)
 	err := json.Unmarshal(command, &c)
 	if err != nil {
-		log.Println(err)
+		//log.Println(err)
+        ulapphDebug(w,r, "error", fmt.Sprintf("ERROR: %v", err))
 	}
 	return c
 }
@@ -94457,7 +94560,7 @@ func ExecAndListen(w http.ResponseWriter, r *http.Request, command string, args 
 			ulapphDebug(w,r, "error", fmt.Sprintf("ERROR: %v", err))
 		}
 	}
-	ulapphDebug(w,r, "success", fmt.Sprintf("TERMUX-RESPONSE: %v", cmdOutput.Bytes()))
+	ulapphDebug(w,r, "success", fmt.Sprintf("TERMUX-RESPONSE: %v", len(cmdOutput.Bytes())))
 	return cmdOutput.Bytes()
 }
 
